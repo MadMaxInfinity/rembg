@@ -4,6 +4,15 @@ import time
 from enum import Enum
 from typing import IO, cast
 
+# MR START
+from typing import Union #MR
+# from pydantic import BaseModel
+from fastapi import Form
+import logging
+logging.basicConfig(level=logging.DEBUG) # logging.DEBUG or logging.NOTSET or through logger.setLevel(logging.DEBUG)
+logger = logging.getLogger(__name__)
+# MR END
+
 import aiohttp
 import click
 import filetype
@@ -294,15 +303,26 @@ def s(port: int, log_level: str) -> None:
             ),
             a: bool = Query(default=False, description="Enable Alpha Matting"),
             af: int = Query(
-                default=240, ge=0, description="Alpha Matting (Foreground Threshold)"
+                default=240, ge=0, le=255, description="Alpha Matting (Foreground Threshold)"
             ),
             ab: int = Query(
-                default=10, ge=0, description="Alpha Matting (Background Threshold)"
+                default=10, ge=0, le=255, description="Alpha Matting (Background Threshold)"
             ),
             ae: int = Query(
                 default=10, ge=0, description="Alpha Matting (Erode Structure Size)"
             ),
             om: bool = Query(default=False, description="Only Mask"),
+            #MR: Add background_color management and JPEG
+            bk: Union[str, None] = Query(
+                default=None,
+                description="Background color (HEX)",
+                regex="^#?([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$"
+            ),
+            ext: Union[str, None] = Query(
+                default='png',
+                description="Image file extension required",
+                regex="^(?i)(jpe?g|png)$"
+            ),
         ):
             self.model = model
             self.a = a
@@ -310,8 +330,93 @@ def s(port: int, log_level: str) -> None:
             self.ab = ab
             self.ae = ae
             self.om = om
-
+            if not bk.startswith('#') :
+                bk = '#' + bk
+            self.bk = bk
+            ext = ext.lower()
+            if ext == 'jpeg' :
+                ext='jpg'
+            self.ext = ext
+            logger.debug('   [QUERY] model=%s', model)
+            logger.debug('   [QUERY] a=%s', a)
+            logger.debug('   [QUERY] ab=%s', ab)
+            logger.debug('   [QUERY] ae=%s', ae)
+            logger.debug('   [QUERY] af=%s', af)
+            logger.debug('   [QUERY] om=%s', om)
+            logger.debug('   [QUERY] bk=%s', bk)
+            logger.debug('   [QUERY] ext=%s', ext)
+            
+    # MR Mostly a test, to write it as "should be" according to https://fastapi.tiangolo.com/fr/tutorial/body/
+    class CommonQueryPostParamsAlternative(BaseModel):
+        model: ModelType = Form(default=ModelType.u2net)
+        a: bool = Form(default=False)
+        af: int = Form(default=240)
+        ab: int = Form(default=10)
+        ae: int = Form(default=10)
+        om: bool = Form(default=False)
+        #MR: Add background_color management and JPEG
+        bk: Union[str, None] = Form(default=None)
+        ext: Union[str, None] = Form(default='png')
+    
+    class CommonQueryPostParams:
+           def __init__(
+            self,
+            model: ModelType = Form(
+                default=ModelType.u2net,
+                description="Model to use when processing image",
+            ),
+            a: bool = Form(default=False, description="Enable Alpha Matting"),
+            af: int = Form(
+                default=240, ge=0, le=255, description="Alpha Matting (Foreground Threshold)"
+            ),
+            ab: int = Form(
+                default=10, ge=0, le=255, description="Alpha Matting (Background Threshold)"
+            ),
+            ae: int = Form(
+                default=10, ge=0, description="Alpha Matting (Erode Structure Size)"
+            ),
+            om: bool = Form(default=False, description="Only Mask"),
+            #MR: Add background_color management and JPEG
+            bk: Union[str, None] = Form(
+                default=None,
+                description="Background color (HEX)",
+                regex="^#?([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$"
+            ),
+            ext: Union[str, None] = Form(
+                default='png',
+                description="Image file extension required",
+                regex="^(?i)(jpe?g|png)$"
+            ),
+        ):
+            self.model = model
+            self.a = a
+            self.af = af
+            self.ab = ab
+            self.ae = ae
+            self.om = om
+            if not bk.startswith('#') :
+                bk = '#' + bk
+            self.bk = bk
+            ext = ext.lower()
+            if ext == 'jpeg' :
+                ext='jpg'
+            self.ext = ext
+            logger.debug('   [FORM] model=%s', model)
+            logger.debug('   [FORM] a=%s', a)
+            logger.debug('   [FORM] ab=%s', ab)
+            logger.debug('   [FORM] ae=%s', ae)
+            logger.debug('   [FORM] af=%s', af)
+            logger.debug('   [FORM] om=%s', om)
+            logger.debug('   [FORM] bk=%s', bk)
+            logger.debug('   [FORM] ext=%s', ext)
+            
     def im_without_bg(content: bytes, commons: CommonQueryParams) -> Response:
+        #MR START - Manage media_type
+        mimetype="image/png"
+        if commons.ext in ('jpg', 'jpeg'):
+            mimetype="image/jpeg"
+        logger.debug('[AFTER] mimetype=%s', mimetype)
+        # MR END
         return Response(
             remove(
                 content,
@@ -323,8 +428,10 @@ def s(port: int, log_level: str) -> None:
                 alpha_matting_background_threshold=commons.ab,
                 alpha_matting_erode_size=commons.ae,
                 only_mask=commons.om,
+                background_color=commons.bk,
+                extension=commons.ext,
             ),
-            media_type="image/png",
+            media_type=mimetype, #MR
         )
 
     @app.get(
@@ -335,7 +442,8 @@ def s(port: int, log_level: str) -> None:
     )
     async def get_index(
         url: str = Query(
-            default=..., description="URL of the image that has to be processed."
+            default=...,
+            description="URL of the image that has to be processed."
         ),
         commons: CommonQueryParams = Depends(),
     ):
@@ -355,8 +463,7 @@ def s(port: int, log_level: str) -> None:
             default=...,
             description="Image file (byte stream) that has to be processed.",
         ),
-        commons: CommonQueryParams = Depends(),
+        commons: CommonQueryPostParams = Depends()
     ):
         return await asyncify(im_without_bg)(file, commons)
-
     uvicorn.run(app, host="0.0.0.0", port=port, log_level=log_level)
