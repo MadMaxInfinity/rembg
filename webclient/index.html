@@ -1,0 +1,114 @@
+<html>
+<head>
+<meta charset="utf-8">
+<title>RemBG - IA de supression des fonds d'image</title>
+</head>
+<body>
+<h2>Sélectionnez une image</h2>
+<style>
+.alnright{text-align:right;}
+label.disabled{color: darkgrey;}
+legend.disabled{color: darkgrey;}
+</style>
+<form id="rembg_form" action="http://localhost:5000" method="post" enctype="multipart/form-data">
+	<input type="file" name="file" accept=".gif,.jpg,.jpeg,.png,.webp"/><br><br>
+	<label for="model_select">Modèle à utiliser:</label>
+	<select name="model" id="model_select">
+		<option value="u2net">u2net</option>
+		<option value="u2netp">u2netp</option>
+		<option value="u2net_human_seg" selected>u2net_human_seg</option>
+		<option value="u2net_portrait">u2net_portrait (à venir)</option>
+		<option value="u2net_human_seg">u2net_human_seg (à tester)</option>
+	</select><br><br>
+   <input type="checkbox" id="alpha_matting" name="a">
+   <label for="alpha_matting">Utiliser alpha matting&nbsp;?</label><br>
+   <br>
+   <fieldset id="alpha_matting_options" style="width:max-content">
+   <legend class="disabled">Options de l'alpha matting</legend>
+   <table id="settings">
+		<tr >
+			<td class="alnright"><label for="alpha_matting_foreground_threshold" class="disabled">Seuil premier plan (0-255):</label></td>
+			<td><input type="range" id="alpha_matting_foreground_threshold" name="af" min="0" max="255" value="240" step="5" disabled="disabled" oninput="af_value.value = alpha_matting_foreground_threshold.value"><output id="af_value">240</output></td>
+		</tr>
+		<tr>
+			<td class="alnright"><label for="alpha_matting_background_threshold" class="disabled">Seuil arrière plan (0-255):</label></td>
+			<td><input type="range" id="alpha_matting_background_threshold" name="ab" min="0" max="255" value="10" step="5" disabled="disabled" oninput="ab_value.value = alpha_matting_background_threshold.value"><output id="ab_value">10</output></td>
+		</tr>
+		<tr>
+			<td class="alnright"><label for="alpha_matting_erode_structure_size" class="disabled">Taille d'érosion de la structure (0-25):</label></td>
+			<td><input type="range" id="alpha_matting_erode_structure_size" name="ae" min="0" max="25" value="10" step="1" disabled="disabled" oninput="ae_value.value = alpha_matting_erode_structure_size.value"><output id="ae_value">10</output></td>
+		</tr>
+		<!--
+		<tr>
+			<td class="alnright"><label for="alpha_matting_base_size" class="disabled">Taille de base (>0):</label></td>
+			<td><input type="range" id="alpha_matting_base_size" name="az" min="0" max="4000" value="600" step="10" disabled="disabled" oninput="az_value.value = alpha_matting_base_size.value"><output id="az_value">600</output></td>
+		</tr>
+		-->
+   </table>
+	</fieldset><br>
+	<input type="checkbox" id="only_mask" name="om">
+	<label for="only_mask">Renvoyer uniquement le masque ?</label><br><br>
+	<div id="color_option">
+	<input type="checkbox" id="use_color_background" name="use_color_background">
+	<label for="use_color_background">Utiliser une couleur de remplissage&nbsp;?</label><br><br>
+	</div>
+	<div id='color_manager'>
+	<fieldset id="background_options" style="width:max-content">
+	   <legend class="disabled">Options couleur de fond et format</legend>
+		<input type="color" id="bk" name="bk" value="#FFFFFF" disabled="disabled">
+		<label for="bk" class="disabled">Couleur de remplissage</label><br>
+		<br>
+		<input type="checkbox" id="save_as_jpeg" name="ext" disabled="disabled" value="JpeG" selected>
+		<label for="save_as_jpeg" class="disabled">Sauvegarder en tant que JPEG&nbsp;?</p>
+	</div>
+	</fieldset>
+<br>
+   <input type="submit" value="Envoyer"/>
+</form>
+<script type="text/javascript">
+function switchState(table_id, bDisable)
+{
+    var inputs=document.getElementById(table_id).getElementsByTagName('input');
+    for(var i=0; i<inputs.length; ++i)
+        inputs[i].disabled=bDisable;
+    var inputs=document.getElementById(table_id).getElementsByTagName('label');
+    for(var i=0; i<inputs.length; ++i)
+        if (bDisable) {
+			inputs[i].classList.add('disabled');
+		} else {
+			inputs[i].classList.remove('disabled');
+		}
+	var inputs=document.getElementById(table_id).getElementsByTagName('legend');
+    for(var i=0; i<inputs.length; ++i)
+        if (bDisable) {
+			inputs[i].classList.add('disabled');
+		} else {
+			inputs[i].classList.remove('disabled');
+		}
+}
+document.getElementById('alpha_matting').onclick = function() {
+    var state = !document.getElementById('alpha_matting').checked;
+	// alert("Disable="+disabled);
+    switchState("alpha_matting_options",state);
+}
+document.getElementById('only_mask').onclick = function() {
+    var bDisable = document.getElementById('only_mask').checked;
+	// alert("Disable="+bDisable);
+	switchState("color_option", bDisable);
+	var ucb_isCheked = document.getElementById('use_color_background').checked;
+	if (bDisable) {
+		switchState("color_manager",bDisable);
+	} else {
+		if (ucb_isCheked) {
+			switchState("color_manager",!ucb_isCheked);
+		}
+	}
+}
+document.getElementById('use_color_background').onclick = function() {
+    var state = !document.getElementById('use_color_background').checked;
+	// alert("Disable="+disabled);
+    switchState("color_manager",state);
+}
+</script>
+</body>
+</html>
