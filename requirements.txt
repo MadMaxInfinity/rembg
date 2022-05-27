@@ -4,7 +4,7 @@ click==8.0.3
 fastapi==0.72.0
 filetype==1.0.9
 gdown==4.4.0
-numpy==1.22.3
+numpy==1.21.6
 onnxruntime==1.10.0
 pillow==9.0.1
 pymatting==1.1.5
