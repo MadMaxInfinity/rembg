@@ -5,6 +5,8 @@ from typing import List, Optional, Union
 import numpy as np
 from PIL import Image
 from PIL.Image import Image as PILImage
+#MR import ImmageColor for bk
+from PIL import ImageColor
 from pymatting.alpha.estimate_alpha_cf import estimate_alpha_cf
 from pymatting.foreground.estimate_foreground_ml import estimate_foreground_ml
 from pymatting.util.util import stack_images
@@ -13,6 +15,11 @@ from scipy.ndimage.morphology import binary_erosion
 from .session_base import BaseSession
 from .session_factory import new_session
 
+# MR START
+import logging
+logging.basicConfig(level=logging.DEBUG) # logging.DEBUG or logging.NOTSET or through logger.setLevel(logging.DEBUG)
+logger = logging.getLogger(__name__)
+# MR END
 
 class ReturnType(Enum):
     BYTES = 0
@@ -87,6 +94,8 @@ def remove(
     alpha_matting_erode_size: int = 10,
     session: Optional[BaseSession] = None,
     only_mask: bool = False,
+    background_color: str = '',
+    extension: str = 'png',
 ) -> Union[bytes, PILImage, np.ndarray]:
 
     if isinstance(data, PILImage):
@@ -125,10 +134,18 @@ def remove(
 
         else:
             cutout = naive_cutout(img, mask)
-
+        #MR START
+        logger.debug('[BEFORE] background_color=%s', background_color)
+        if background_color is not None:
+            logger.debug('[INSIDE] background_color=%s', background_color)
+            background = Image.new("RGB", img.size, ImageColor.getrgb(background_color))
+            background.paste(cutout, cutout.split()[-1])
+            cutout = background
+        logger.debug('[AFTER] background_color=%s', background_color)
+        #MR END
         cutouts.append(cutout)
-
     cutout = img
+
     if len(cutouts) > 0:
         cutout = get_concat_v_multi(cutouts)
 
@@ -139,7 +156,11 @@ def remove(
         return np.asarray(cutout)
 
     bio = io.BytesIO()
-    cutout.save(bio, "PNG")
+    if extension=='jpg':
+        cutout = cutout.convert('RGB')
+        cutout.save(bio, "JPEG")
+    else:
+        cutout.save(bio, "PNG")
     bio.seek(0)
 
     return bio.read()
